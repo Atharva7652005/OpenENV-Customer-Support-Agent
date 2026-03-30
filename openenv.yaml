@@ -1,0 +1,5 @@
+name: customer-support-env
+tasks:
+  - easy
+  - medium
+  - hard
