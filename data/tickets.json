@@ -1,0 +1,17 @@
+[
+    {
+        "ticket": "My order hasn't arrived",
+        "priority": "high",
+        "type": "delivery_issue"
+    },
+    {
+        "ticket": "Received damaged product",
+        "priority": "medium",
+        "type": "product_issue"
+    },
+    {
+        "ticket": "System constantly crashes and data is corrupted.",
+        "priority": "critical",
+        "type": "technical_issue"
+    }
+]
