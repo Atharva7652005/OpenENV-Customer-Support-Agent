@@ -2,7 +2,7 @@ import os
 import json
 from google import genai
 from env.models import Observation, Action
-from agent.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from agent.prompts import PROMPT_TEMPLATE
 
 class SupportAgent:
     def __init__(self):
@@ -15,20 +15,15 @@ class SupportAgent:
     def select_action(self, observation: Observation) -> Action:
         history_str = "\n".join(observation.history) if observation.history else "None"
         
-        user_prompt = USER_PROMPT_TEMPLATE.format(
+        full_prompt = PROMPT_TEMPLATE.format(
             ticket=observation.ticket,
-            priority=observation.priority,
-            status=observation.status,
-            history_str=history_str
+            history=history_str,
+            status=observation.status
         )
-        
-        # Combine system and user prompts and mandate JSON format
-        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}\n\nPlease output ONLY valid JSON without markdown wrapping."
         
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # Upgraded generate_content call
                 response = self.client.models.generate_content(
                     model="gemini-3-flash-preview",
                     contents=full_prompt
@@ -36,7 +31,6 @@ class SupportAgent:
                 
                 content = response.text.strip() if response.text else ""
                 
-                # Safely strip markdown styling if it exists
                 if content.startswith("```"):
                     lines = content.splitlines()
                     if lines[0].startswith("```"):
@@ -45,22 +39,29 @@ class SupportAgent:
                         lines = lines[:-1]
                     content = "\n".join(lines).strip()
                 
-                # Extract strict JSON envelope
                 start_idx = content.find('{')
                 end_idx = content.rfind('}')
                 if start_idx != -1 and end_idx != -1:
                     content = content[start_idx:end_idx+1]
                     
                 data = json.loads(content)
+                raw_action_type = data.get("action_type", "respond")
+                message = data.get("message", "We are checking your issue.")
                 
-                # Fallback to defaults to prevent unhandled actions
-                action_type = data.get("action_type", "respond")
+                # Check message for explicit keywords
+                if "refund" in message.lower() or "replace" in message.lower():
+                    action_type = "refund"
+                elif "escalate" in message.lower():
+                    action_type = "escalate"
+                else:
+                    action_type = raw_action_type
+                    
                 if action_type not in ["respond", "refund", "escalate", "resolve"]:
                     action_type = "respond"
                     
                 return Action(
                     action_type=action_type,
-                    message=data.get("message", "We are checking your issue.")
+                    message=message
                 )
             except Exception as e:
                 if attempt == max_retries - 1:
