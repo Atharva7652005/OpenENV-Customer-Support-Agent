@@ -1,3 +1,6 @@
+def is_repeating(history, message):
+    return message in history[-2:]
+
 class StateManager:
     def __init__(self):
         self.ticket = None

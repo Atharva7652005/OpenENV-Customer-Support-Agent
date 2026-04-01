@@ -1,5 +1,5 @@
 from env.models import Observation, Action, Reward
-from env.state_manager import StateManager
+from env.state_manager import StateManager, is_repeating
 from env.reward import RewardManager
 from env.tasks import get_task
 from env.grader import Grader
@@ -26,12 +26,24 @@ class CustomerSupportEnv:
         )
 
     def step(self, action: Action):
+        state_pre = self.state_manager.get_state()
+        history_pre = state_pre["history"]
+        pending_message = f"Agent ({action.action_type}): {action.message}"
+        repeated_response = is_repeating(history_pre, pending_message)
+        
         self.state_manager.update_state(action)
         state = self.state_manager.get_state()
         
-        is_done = state["status"] in ["resolved", "escalated"] or state["step_count"] >= 5
+        force_resolution = state["step_count"] > 2
         
-        reward_score = self.reward_manager.calculate_step_reward(action, state["step_count"], is_done)
+        is_done = state["status"] in ["resolved", "escalated"] or state["step_count"] >= 4
+        
+        reward_score = self.reward_manager.calculate_step_reward(action, state["step_count"], is_done, repeated_response)
+        
+        # Add force_resolution penalty if step count goes too high without resolution
+        if force_resolution and not is_done:
+            reward_score -= 0.5
+            reward_score = max(-1.0, reward_score)
         
         observation = Observation(
             ticket=state["ticket"],
